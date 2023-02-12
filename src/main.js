@@ -10,8 +10,8 @@ import VCharts from 'v-charts'
 import '@/styles/index.scss' // global css
 
 import App from './App'
-import router from './router'
 import store from './store'
+import router from './router'
 
 import '@/icons' // icon
 import '@/permission' // permission control
@@ -25,6 +25,5 @@ new Vue({
   el: '#app',
   router,
   store,
-  template: '<App/>',
-  components: { App }
-})
+  render: h => h(App)
+}).$mount("#app")

@@ -4,8 +4,11 @@ import store from '../store'
 import { getToken } from '@/utils/auth'
 
 // 创建axios实例
+
+const baseURL = process.env.NODE_ENV === 'development' ? `/api` : `/`
+
 const service = axios.create({
-  baseURL: process.env.BASE_API, // api的base_url
+  baseURL: baseURL, // api的base_url
   timeout: 15000 // 请求超时时间
 })
 

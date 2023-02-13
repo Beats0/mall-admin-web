@@ -5,7 +5,7 @@ import { getToken } from '@/utils/auth'
 
 // 创建axios实例
 
-const baseURL = process.env.NODE_ENV === 'development' ? `/api` : `/`
+const baseURL = process.env.NODE_ENV === 'development' ? `/api/mall-admin` : `/mall-admin`
 
 const service = axios.create({
   baseURL: baseURL, // api的base_url

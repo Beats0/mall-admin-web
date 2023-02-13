@@ -6,9 +6,11 @@ module.exports = defineConfig({
   productionSourceMap: false,
   devServer: {
     open: true,
+    host:'localhost',
+    port: 81,
     proxy: {
       '/api': {
-        target: 'http://localhost:8201/mall-admin',
+        target: 'http://localhost:8201',
         changeOrigin: true,
         pathRewrite: {
           '^/api': ''

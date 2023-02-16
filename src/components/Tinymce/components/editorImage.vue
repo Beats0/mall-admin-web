@@ -5,14 +5,15 @@
     </el-button>
     <el-dialog append-to-body :visible.sync="dialogVisible">
       <el-upload class="editor-slide-upload"
-                 action="http://macro-oss.oss-cn-shenzhen.aliyuncs.com"
-                 :data="dataObj"
+                 :action="useOSS?ossUploadUrl:minioUploadUrl"
+                 :data="useOSS?dataObj:null"
                  :multiple="true"
                  :file-list="fileList"
                  :show-file-list="true"
                  list-type="picture-card"
                  :on-remove="handleRemove"
                  :on-success="handleSuccess"
+                 :on-error="onError"
                  :before-upload="beforeUpload">
         <el-button size="small" type="primary">点击上传</el-button>
       </el-upload>
@@ -24,6 +25,8 @@
 
 <script>
   import {policy} from '@/api/oss'
+  import config from "@/config";
+  import { getToken } from "@/utils/auth";
 
   export default {
     name: 'editorSlideUpload',
@@ -45,7 +48,10 @@
           ossaccessKeyId: '',
           dir: '',
           host: ''
-        }
+        },
+        useOSS: config.useOSS, //使用oss->true;使用MinIO->false
+        ossUploadUrl: config.ossUploadUrl,
+        minioUploadUrl: config.minioUploadUrl,
       }
     },
     methods: {
@@ -69,11 +75,21 @@
         const objKeyArr = Object.keys(this.listObj)
         for (let i = 0, len = objKeyArr.length; i < len; i++) {
           if (this.listObj[objKeyArr[i]].uid === uid) {
-            this.listObj[objKeyArr[i]].url = this.dataObj.host + '/' + this.dataObj.dir + '/' + file.name;
-            this.listObj[objKeyArr[i]].hasSuccess = true;
+            if(this.listObj[objKeyArr[i]].type === 'oss') {
+              this.listObj[objKeyArr[i]].url = this.dataObj.host + '/' + this.dataObj.dir + '/' + file.name;
+              this.listObj[objKeyArr[i]].hasSuccess = true;
+            } else if(this.listObj[objKeyArr[i]].type === 'minio' && response.code === 200) {
+              // minio
+              this.listObj[objKeyArr[i]].url = response.data.url
+              this.listObj[objKeyArr[i]].hasSuccess = true;
+            }
             return
           }
         }
+      },
+      // 文件上传失败
+      onError(err, file, fileList) {
+        this.$message.error(`上传失败, ${err.message}`)
       },
       handleRemove(file) {
         const uid = file.uid;
@@ -89,6 +105,11 @@
         const _self = this
         const fileName = file.uid;
         this.listObj[fileName] = {};
+        if(!this.useOSS){
+          //不使用oss不需要获取策略
+          _self.listObj[fileName] = {type: 'minio', hasSuccess: false, uid: file.uid, width: this.width, height: this.height};
+          return true;
+        }
         return new Promise((resolve, reject) => {
           policy().then(response => {
             _self.dataObj.policy = response.data.policy;
@@ -97,7 +118,7 @@
             _self.dataObj.key = response.data.dir + '/${filename}';
             _self.dataObj.dir = response.data.dir;
             _self.dataObj.host = response.data.host;
-            _self.listObj[fileName] = {hasSuccess: false, uid: file.uid, width: this.width, height: this.height};
+            _self.listObj[fileName] = {type: 'oss', hasSuccess: false, uid: file.uid, width: this.width, height: this.height};
             resolve(true)
           }).catch(err => {
             console.log(err)

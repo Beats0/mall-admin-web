@@ -1,14 +1,15 @@
-<template> 
+<template>
   <div>
     <el-upload
-      :action="useOss?ossUploadUrl:minioUploadUrl"
-      :data="useOss?dataObj:null"
+      :action="useOSS?ossUploadUrl:minioUploadUrl"
+      :data="useOSS?dataObj:null"
       list-type="picture"
       :multiple="false" :show-file-list="showFileList"
       :file-list="fileList"
       :before-upload="beforeUpload"
       :on-remove="handleRemove"
       :on-success="handleUploadSuccess"
+      :on-error="onError"
       :on-preview="handlePreview">
       <el-button size="small" type="primary">点击上传</el-button>
       <div slot="tip" class="el-upload__tip">只能上传jpg/png文件，且不超过10MB</div>
@@ -19,100 +20,115 @@
   </div>
 </template>
 <script>
-  import {policy} from '@/api/oss'
+import {policy} from '@/api/oss'
+import config from "@/config";
+import { getToken } from "@/utils/auth";
+import { Message } from "element-ui";
 
-  export default {
-    name: 'singleUpload',
-    props: {
-      value: String
+export default {
+  name: 'singleUpload',
+  props: {
+    value: String
+  },
+  computed: {
+    imageUrl() {
+      return this.value;
     },
-    computed: {
-      imageUrl() {
-        return this.value;
-      },
-      imageName() {
-        if (this.value != null && this.value !== '') {
-          return this.value.substr(this.value.lastIndexOf("/") + 1);
-        } else {
-          return null;
-        }
-      },
-      fileList() {
-        return [{
-          name: this.imageName,
-          url: this.imageUrl
-        }]
-      },
-      showFileList: {
-        get: function () {
-          return this.value !== null && this.value !== ''&& this.value!==undefined;
-        },
-        set: function (newValue) {
-        }
+    imageName() {
+      if (this.value != null && this.value !== '') {
+        return this.value.substr(this.value.lastIndexOf("/") + 1);
+      } else {
+        return null;
       }
     },
-    data() {
-      return {
-        dataObj: {
-          policy: '',
-          signature: '',
-          key: '',
-          ossaccessKeyId: '',
-          dir: '',
-          host: '',
-          // callback:'',
-        },
-        dialogVisible: false,
-        useOss:true, //使用oss->true;使用MinIO->false
-        ossUploadUrl:'http://macro-oss.oss-cn-shenzhen.aliyuncs.com',
-        minioUploadUrl:'http://localhost:8080/minio/upload',
-      };
+    fileList() {
+      return [{
+        name: this.imageName,
+        url: this.imageUrl
+      }]
     },
-    methods: {
-      emitInput(val) {
-        this.$emit('input', val)
+    showFileList: {
+      get: function () {
+        return this.value !== null && this.value !== ''&& this.value!==undefined;
       },
-      handleRemove(file, fileList) {
-        this.emitInput('');
+      set: function (newValue) {
+      }
+    },
+  },
+  data() {
+    return {
+      dataObj: {
+        policy: '',
+        signature: '',
+        key: '',
+        ossaccessKeyId: '',
+        dir: '',
+        host: '',
+        // callback:'',
       },
-      handlePreview(file) {
-        this.dialogVisible = true;
-      },
-      beforeUpload(file) {
-        let _self = this;
-        if(!this.useOss){
-          //不使用oss不需要获取策略
-          return true;
-        }
-        return new Promise((resolve, reject) => {
-          policy().then(response => {
-            _self.dataObj.policy = response.data.policy;
-            _self.dataObj.signature = response.data.signature;
-            _self.dataObj.ossaccessKeyId = response.data.accessKeyId;
-            _self.dataObj.key = response.data.dir + '/${filename}';
-            _self.dataObj.dir = response.data.dir;
-            _self.dataObj.host = response.data.host;
-            // _self.dataObj.callback = response.data.callback;
-            resolve(true)
-          }).catch(err => {
-            console.log(err)
-            reject(false)
-          })
+      dialogVisible: false,
+      useOSS: config.useOSS, //使用oss->true;使用MinIO->false
+      ossUploadUrl: config.ossUploadUrl,
+      minioUploadUrl: config.minioUploadUrl,
+    };
+  },
+  methods: {
+    emitInput(val) {
+      this.$emit('input', val)
+    },
+    handleRemove(file, fileList) {
+      this.emitInput('');
+    },
+    handlePreview(file) {
+      this.dialogVisible = true;
+    },
+    beforeUpload(file) {
+      let _self = this;
+      if(!this.useOSS){
+        //不使用oss不需要获取策略
+        return true;
+      }
+      return new Promise((resolve, reject) => {
+        policy().then(response => {
+          _self.dataObj.policy = response.data.policy;
+          _self.dataObj.signature = response.data.signature;
+          _self.dataObj.ossaccessKeyId = response.data.accessKeyId;
+          _self.dataObj.key = response.data.dir + '/${filename}';
+          _self.dataObj.dir = response.data.dir;
+          _self.dataObj.host = response.data.host;
+          // _self.dataObj.callback = response.data.callback;
+          resolve(true)
+        }).catch(err => {
+          console.log(err)
+          reject(false)
         })
-      },
-      handleUploadSuccess(res, file) {
-        this.showFileList = true;
-        this.fileList.pop();
-        let url = this.dataObj.host + '/' + this.dataObj.dir + '/' + file.name;
-        if(!this.useOss){
-          //不使用oss直接获取图片路径
-          url = res.data.url;
-        }
-        this.fileList.push({name: file.name, url: url});
-        this.emitInput(this.fileList[0].url);
+      })
+    },
+    handleUploadSuccess(res, file) {
+      if(res.code !== 200) {
+        Message({
+          message: res.message,
+          type: 'error',
+          duration: 3 * 1000
+        })
+        return
       }
-    }
+      this.showFileList = true;
+      this.fileList.pop();
+      let url = this.dataObj.host + '/' + this.dataObj.dir + '/' + file.name;
+      if(!this.useOSS){
+        //不使用oss直接获取图片路径
+        url = res.data.url;
+      }
+      this.fileList.push({name: file.name, url: url});
+      this.emitInput(this.fileList[0].url);
+    },
+    // 文件上传失败
+    onError(err, file, fileList) {
+      this.$message.error(`上传失败, ${err.message}`)
+    },
   }
+}
 </script>
 <style>
 

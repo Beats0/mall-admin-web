@@ -1,13 +1,14 @@
-<template> 
+<template>
   <div>
     <el-upload
-      :action="useOss?ossUploadUrl:minioUploadUrl"
-      :data="useOss?dataObj:null"
+      :action="useOSS?ossUploadUrl:minioUploadUrl"
+      :data="useOSS?dataObj:null"
       list-type="picture-card"
       :file-list="fileList"
       :before-upload="beforeUpload"
       :on-remove="handleRemove"
       :on-success="handleUploadSuccess"
+      :on-error="onError"
       :on-preview="handlePreview"
       :limit="maxCount"
       :on-exceed="handleExceed"
@@ -20,9 +21,12 @@
   </div>
 </template>
 <script>
-  import {policy} from '@/api/oss'
+import config from "@/config";
+import {policy} from '@/api/oss'
+import { getToken } from "@/utils/auth";
+import { Message } from "element-ui";
 
-  export default {
+export default {
     name: 'multiUpload',
     props: {
       //图片属性数组
@@ -41,13 +45,13 @@
           key: '',
           ossaccessKeyId: '',
           dir: '',
-          host: ''
+          host: '',
         },
         dialogVisible: false,
         dialogImageUrl:null,
-        useOss:true, //使用oss->true;使用MinIO->false
-        ossUploadUrl:'http://macro-oss.oss-cn-shenzhen.aliyuncs.com',
-        minioUploadUrl:'http://localhost:8080/minio/upload',
+        useOSS: config.useOSS, //使用oss->true;使用MinIO->false
+        ossUploadUrl: config.ossUploadUrl,
+        minioUploadUrl: config.minioUploadUrl,
       };
     },
     computed: {
@@ -76,7 +80,7 @@
       },
       beforeUpload(file) {
         let _self = this;
-        if(!this.useOss){
+        if(!this.useOSS){
           //不使用oss不需要获取策略
           return true;
         }
@@ -96,13 +100,25 @@
         })
       },
       handleUploadSuccess(res, file) {
+        if(res.code !== 200) {
+          Message({
+            message: res.message,
+            type: 'error',
+            duration: 3 * 1000
+          })
+          return
+        }
         let url = this.dataObj.host + '/' + this.dataObj.dir + '/' + file.name;
-        if(!this.useOss){
+        if(!this.useOSS){
           //不使用oss直接获取图片路径
           url = res.data.url;
         }
         this.fileList.push({name: file.name,url:url});
         this.emitInput(this.fileList);
+      },
+      // 文件上传失败
+      onError(err, file, fileList) {
+        this.$message.error(`上传失败, ${err.message}`)
       },
       handleExceed(files, fileList) {
         this.$message({
